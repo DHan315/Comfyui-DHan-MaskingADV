@@ -234,6 +234,9 @@ app.registerExtension({
       const mctx = maskCanvas.getContext("2d");
       const realMask = document.createElement("canvas");
       const rctx = realMask.getContext("2d");
+      const overlay = document.createElement("canvas");
+      const octx = overlay.getContext("2d");
+      let overlayDirty = true;
 
       const style = document.createElement("style");
       style.textContent = `
@@ -591,7 +594,6 @@ app.registerExtension({
         configureDisplayCanvas(previewCanvas, pctx, W, H);
         configureDisplayCanvas(maskCanvas, mctx, W, H);
         redrawPreview();
-        saveMask();
       }
 
       function resetRealMaskToImageSize() {
@@ -601,6 +603,7 @@ app.registerExtension({
         rctx.fillStyle = "black";
         rctx.fillRect(0, 0, realMask.width, realMask.height);
         maskExplicit = false;
+        overlayDirty = true;
       }
 
       function beginExplicitMask() {
@@ -615,6 +618,7 @@ app.registerExtension({
         maskExplicit = true;
         rctx.fillStyle = "white";
         rctx.fillRect(0, 0, realMask.width, realMask.height);
+        overlayDirty = true;
       }
 
       function clearRealMask() {
@@ -622,6 +626,7 @@ app.registerExtension({
         maskExplicit = false;
         rctx.fillStyle = "black";
         rctx.fillRect(0, 0, realMask.width, realMask.height);
+        overlayDirty = true;
       }
 
       function saveMask() {
@@ -664,26 +669,31 @@ app.registerExtension({
           pctx.fillText("Drop / paste / select image", W / 2, H / 2);
         }
         layoutControls();
+        overlayDirty = true;
         redrawMaskOverlay();
       }
 
       function redrawMaskOverlay() {
         mctx.clearRect(0, 0, W, H);
         if (previewImg && imageRect && realMask.width && realMask.height) {
-          const overlay = document.createElement("canvas");
-          overlay.width = realMask.width;
-          overlay.height = realMask.height;
-          const octx = overlay.getContext("2d");
-          const maskData = rctx.getImageData(0, 0, realMask.width, realMask.height);
-          const data = maskData.data;
-          for (let i = 0; i < data.length; i += 4) {
-            const v = data[i];
-            if (v > 0) {
-              data[i] = 255; data[i + 1] = 0; data[i + 2] = 0; data[i + 3] = 120;
-            } else data[i + 3] = 0;
+          if (overlayDirty) {
+            if (overlay.width !== W || overlay.height !== H) {
+              overlay.width = W;
+              overlay.height = H;
+            }
+            octx.clearRect(0, 0, W, H);
+            octx.drawImage(realMask, imageRect.x, imageRect.y, imageRect.w, imageRect.h);
+            const maskData = octx.getImageData(0, 0, W, H);
+            const data = maskData.data;
+            for (let i = 0; i < data.length; i += 4) {
+              if (data[i] > 0) {
+                data[i] = 255; data[i + 1] = 0; data[i + 2] = 0; data[i + 3] = 120;
+              } else data[i + 3] = 0;
+            }
+            octx.putImageData(maskData, 0, 0);
+            overlayDirty = false;
           }
-          octx.putImageData(maskData, 0, 0);
-          mctx.drawImage(overlay, imageRect.x, imageRect.y, imageRect.w, imageRect.h);
+          mctx.drawImage(overlay, 0, 0, W, H);
         }
         drawSelectionPreview();
         drawBrushCursor();
@@ -796,8 +806,8 @@ app.registerExtension({
         if (lastPoint) drawLine(lastPoint, p, tool);
         else stamp(p, tool);
         lastPoint = p;
+        overlayDirty = true;
         redrawMaskOverlay();
-        saveMask();
       }
 
       function applySelection() {
@@ -815,6 +825,7 @@ app.registerExtension({
           rctx.fill();
         }
         rctx.restore();
+        overlayDirty = true;
       }
 
       function imageValueFromUploadResponse(data) {
@@ -943,7 +954,7 @@ app.registerExtension({
         return p.y >= 0 && p.y <= H;
       }
 
-      function updateBrushCursor(e) {
+      function updateBrushCursor(e, redraw = true) {
         if (!pointerIsInPreview(e)) {
           pointerInPreview = false;
           brushCursorPoint = null;
@@ -952,7 +963,7 @@ app.registerExtension({
           brushCursorPoint = getCanvasPoint(e);
         }
         setWrapperCursor();
-        redrawMaskOverlay();
+        if (redraw) redrawMaskOverlay();
       }
 
       // Handle gestures on the full preview workspace rather than only on the
@@ -990,7 +1001,7 @@ app.registerExtension({
       }, true);
 
       wrapper.addEventListener("pointermove", e => {
-        updateBrushCursor(e);
+        updateBrushCursor(e, !isDrawing || (e.buttons & 1) !== 1);
         if (!isDrawing || (e.buttons & 1) !== 1) return;
         e.preventDefault(); e.stopPropagation();
         if (tool === "paint" || tool === "erase") drawBrush(e);

@@ -5,7 +5,7 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "MaskingADV": "Comfyui-DHan-MaskingADV",
+    "MaskingADV": "DHan-MaskingADV",
 }
 
 WEB_DIRECTORY = "./web"

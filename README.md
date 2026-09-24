@@ -15,7 +15,7 @@ The frontend includes Nodes 2.0 preview compatibility and brush cursor updates.
 
 Search for **Comfyui-DHan-MaskingADV** in ComfyUI Manager, or clone [this repository](https://github.com/DHan315/Comfyui-DHan-MaskingADV) into `ComfyUI/custom_nodes/`. Restart ComfyUI and refresh the browser after updating.
 
-The node appears as **Comfyui-DHan-MaskingADV** under `Comfyui-DHan/MaskingADV`.
+The node appears as **DHan-MaskingADV** under `Comfyui-DHan/MaskingADV`.
 
 The internal node ID is `MaskingADV`. Existing workflows using the old node ID must replace the node or update their saved workflow JSON.
 

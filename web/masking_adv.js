@@ -173,6 +173,7 @@ app.registerExtension({
       let panY = 0;
       let isPanning = false;
       let panStart = null;
+      let panPointerId = null;
       let panMoved = false;
       let lastMiddleClickTime = 0;
       let maskExplicit = false;
@@ -1095,39 +1096,37 @@ app.registerExtension({
         scheduleReframe();
       }
       document.addEventListener("wheel", handlePreviewWheel, { capture: true, passive: false });
-      const onRemoved = node.onRemoved;
-      node.onRemoved = function (...args) {
-        document.removeEventListener("wheel", handlePreviewWheel, true);
-        return onRemoved?.apply(this, args);
-      };
 
-      wrapper.addEventListener("pointerdown", e => {
-        if (e.button !== 1 || !pointerIsInPreview(e) || !previewImg) return;
+      function startPan(e) {
+        if (e.button !== 1 || !previewImg || !outer.isConnected || (e.target !== app.canvas?.canvas && !wrapper.contains(e.target)) || !pointerIsInPreview(e)) return;
         e.preventDefault();
-        e.stopPropagation();
+        e.stopImmediatePropagation();
         isPanning = true;
+        panPointerId = e.pointerId;
         panMoved = false;
         panStart = { x: e.clientX, y: e.clientY, panX, panY };
-        wrapper.setPointerCapture(e.pointerId);
+        try { wrapper.setPointerCapture(e.pointerId); } catch {}
         setWrapperCursor();
-      }, true);
+      }
 
-      wrapper.addEventListener("pointermove", e => {
-        if (isPanning) updateBrushCursor(e);
-        if (!isPanning || !panStart || !imageRect) return;
+      function movePan(e) {
+        if (!isPanning || e.pointerId !== panPointerId || !panStart || !imageRect) return;
         e.preventDefault();
-        e.stopPropagation();
+        e.stopImmediatePropagation();
         const scaleX = previewImg.width / imageRect.w;
         const scaleY = previewImg.height / imageRect.h;
         if (Math.hypot(e.clientX - panStart.x, e.clientY - panStart.y) > 3) panMoved = true;
         panX = panStart.panX + (e.clientX - panStart.x) * scaleX;
         panY = panStart.panY + (e.clientY - panStart.y) * scaleY;
         scheduleReframe();
-      }, true);
+      }
 
       function finishPan(e) {
-        if (!isPanning) return;
+        if (!isPanning || e.pointerId !== panPointerId) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
         isPanning = false;
+        panPointerId = null;
         panStart = null;
         setWrapperCursor();
         try { wrapper.releasePointerCapture(e.pointerId); } catch {}
@@ -1147,11 +1146,27 @@ app.registerExtension({
         }
         panMoved = false;
       }
-      wrapper.addEventListener("pointerup", finishPan, true);
-      wrapper.addEventListener("pointercancel", finishPan, true);
-      wrapper.addEventListener("auxclick", e => {
-        if (e.button === 1) { e.preventDefault(); e.stopPropagation(); }
-      }, true);
+      function preventMiddleAuxClick(e) {
+        if (e.button === 1 && outer.isConnected && pointerIsInPreview(e)) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+        }
+      }
+      document.addEventListener("pointerdown", startPan, true);
+      document.addEventListener("pointermove", movePan, true);
+      document.addEventListener("pointerup", finishPan, true);
+      document.addEventListener("pointercancel", finishPan, true);
+      document.addEventListener("auxclick", preventMiddleAuxClick, true);
+      const onRemoved = node.onRemoved;
+      node.onRemoved = function (...args) {
+        document.removeEventListener("wheel", handlePreviewWheel, true);
+        document.removeEventListener("pointerdown", startPan, true);
+        document.removeEventListener("pointermove", movePan, true);
+        document.removeEventListener("pointerup", finishPan, true);
+        document.removeEventListener("pointercancel", finishPan, true);
+        document.removeEventListener("auxclick", preventMiddleAuxClick, true);
+        return onRemoved?.apply(this, args);
+      };
 
       wrapper.addEventListener("contextmenu", e => {
         if (!pointerIsInPreview(e)) return;

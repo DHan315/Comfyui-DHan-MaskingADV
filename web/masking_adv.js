@@ -184,6 +184,7 @@ app.registerExtension({
 
       const controlsH = 56;
       const controlsGap = 8;
+      const footerGap = 22;
       const minNodeW = 220;
       const minPreviewW = 120;
       const minPreviewH = 72;
@@ -207,7 +208,7 @@ app.registerExtension({
       Object.assign(wrapper.style, {
         position: "absolute",
         left: "50%",
-        top: "0",
+        top: `-${footerGap}px`,
         transform: "translateX(-50%)",
         border: "none",
         background: "transparent",

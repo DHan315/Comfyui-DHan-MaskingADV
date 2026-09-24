@@ -227,7 +227,7 @@ app.registerExtension({
           touchAction: "none",
         });
       }
-      wrapper.title = "Mouse wheel: fine zoom • Ctrl+wheel: coarse zoom • Middle mouse drag: pan • Double middle-click: fit";
+      wrapper.title = "Mouse wheel: zoom • Ctrl+wheel: coarse zoom • Middle mouse drag: pan • Double middle-click: fit";
       maskCanvas.style.pointerEvents = "none";
 
       const pctx = previewCanvas.getContext("2d");
@@ -1059,6 +1059,18 @@ app.registerExtension({
       // workspace and node bounds until the gesture ends.
 
 
+      let reframeFrame = 0;
+      function scheduleReframe() {
+        if (reframeFrame) return;
+        reframeFrame = requestAnimationFrame(() => {
+          reframeFrame = 0;
+          if (!sourceImg) return;
+          previewImg = makeTransformedImage(sourceImg);
+          redrawPreview();
+          scheduleTransformedImageUpload();
+        });
+      }
+
       wrapper.addEventListener("wheel", e => {
         if (!previewImg || !pointerIsInPreview(e)) return;
         e.preventDefault();
@@ -1071,11 +1083,8 @@ app.registerExtension({
         const outputY = ((cy - imageRect.y) / imageRect.h) * previewImg.height;
         const oldZoom = zoom;
 
-        // Fine, adaptive zoom: about 2% per normal wheel notch near 100%,
-        // and slightly faster when far out or far in. Ctrl gives coarse zoom.
-        let sensitivity = (zoom < 0.6 || zoom > 2.0) ? 0.0005 : 0.0002;
-        if (e.ctrlKey) sensitivity *= 3;
-        const factor = Math.exp(-e.deltaY * sensitivity);
+        const wheelDelta = e.deltaY * (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? H : 1);
+        const factor = Math.exp(-wheelDelta * (e.ctrlKey ? 0.002 : 0.001));
         zoom = Math.min(8, Math.max(0.1, zoom * factor));
 
         // Keep the output point under the cursor stable while zooming.
@@ -1083,10 +1092,8 @@ app.registerExtension({
         const centerY = previewImg.height / 2;
         panX += (outputX - centerX - panX) * (1 - zoom / oldZoom);
         panY += (outputY - centerY - panY) * (1 - zoom / oldZoom);
-        previewImg = makeTransformedImage(sourceImg);
-        redrawPreview();
-        scheduleTransformedImageUpload();
-      }, { passive: false });
+        scheduleReframe();
+      }, { capture: true, passive: false });
 
       wrapper.addEventListener("pointerdown", e => {
         if (e.button !== 1 || !pointerIsInPreview(e) || !previewImg) return;
@@ -1109,9 +1116,7 @@ app.registerExtension({
         if (Math.hypot(e.clientX - panStart.x, e.clientY - panStart.y) > 3) panMoved = true;
         panX = panStart.panX + (e.clientX - panStart.x) * scaleX;
         panY = panStart.panY + (e.clientY - panStart.y) * scaleY;
-        previewImg = makeTransformedImage(sourceImg);
-        redrawPreview();
-        scheduleTransformedImageUpload();
+        scheduleReframe();
       }, true);
 
       function finishPan(e) {

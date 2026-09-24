@@ -191,7 +191,7 @@ app.registerExtension({
       const measuredWidgetH = minPreviewH + controlsGap + controlsH;
       const nodeTopPadding = 112;
       const nodeBottomPadding = 12;
-      const workspacePadding = 36;
+      const workspacePadding = 8;
 
       const outer = document.createElement("div");
       Object.assign(outer.style, {
@@ -582,7 +582,7 @@ app.registerExtension({
 
       function setCanvasSizeFromNode() {
         // The viewport follows the node dimensions independently. The image is fit inside it.
-        W = Math.max(minPreviewW, Math.floor(node.size[0] - 40));
+        W = Math.max(minPreviewW, Math.floor(node.size[0] - 20));
         H = Math.max(minPreviewH, Math.floor(node.size[1] - nodeTopPadding - controlsGap - controlsH - nodeBottomPadding));
 
         outer.style.height = `${measuredWidgetH}px`;

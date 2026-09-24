@@ -183,8 +183,8 @@ app.registerExtension({
       let H = 200;
 
       const controlsH = 56;
-      const controlsGap = 8;
-      const editorLift = 70;
+      const controlsGap = controlsH;
+      const editorLift = 50;
       const minNodeW = 220;
       const minPreviewW = 120;
       const minPreviewH = 72;

@@ -1,6 +1,8 @@
-# Inline Image for ComfyUI
+# Comfyui-DHan-InlineImage
 
 An inline image preview, transform, and mask-painting node for ComfyUI.
+
+The frontend includes the latest Nodes 2.0 preview compatibility and brush cursor updates from the supplied InlineImage package.
 
 Inline Image keeps common image preparation and masking controls directly inside the node, reducing the need to jump between external editors while building workflows.
 

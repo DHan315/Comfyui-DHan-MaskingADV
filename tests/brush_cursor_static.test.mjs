@@ -1,0 +1,37 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const source = readFileSync(join(here, "..", "web", "inline_mask_painter.js"), "utf8");
+
+assert.match(source, /function drawBrushCursor\(\)/, "brush cursor overlay renderer should exist");
+assert.match(source, /drawBrushCursor\(\);\s*\n\s*}/, "mask redraw should include the brush cursor overlay");
+assert.match(source, /function setWrapperCursor\(\)/, "cursor style should be managed on the pointer target");
+assert.match(source, /wrapper\.style\.cursor = "none"/, "paint and erase tools should hide the default cursor");
+assert.match(source, /nodeData\?\.name \?\? nodeType\?\.comfyClass/, "node registration should tolerate newer metadata shapes");
+assert.match(source, /typeof node\.addDOMWidget !== "function"/, "DOM widget mounting should be guarded");
+assert.match(source, /function suppressBuiltInPreview\(\)/, "built-in ComfyUI image preview should be suppressed");
+assert.match(source, /function suppressOutputPreview\(\)/, "Nodes 2.0 output content preview should be suppressed");
+assert.match(source, /Object\.defineProperty\(node, "imgs"/, "node image preview storage should be guarded against repopulation");
+assert.match(source, /Object\.defineProperty\(node, "imageIndex"/, "node image preview index should be guarded against repopulation");
+assert.match(source, /node\.hideOutputImages = true/, "Nodes 2.0 Vue image output preview should be opted out");
+assert.match(source, /function disableInlineImageUploadPreview\(\)/, "Nodes 2.0 media upload preview should be disabled at the node spec");
+assert.match(source, /imageOptions\.image_upload = false/, "image upload spec should be disabled for the inline combo");
+assert.match(source, /imageWidget\.spec\.image_upload = false/, "live image widget spec should be disabled for Nodes 2.0");
+assert.match(source, /node\.size\[1\] = Math\.max\(node\.size\[1\], minNodeH\(\)\)/, "node height should only enforce the minimum during resize");
+assert.doesNotMatch(source, /node\.size\[1\] = Math\.min\(/, "node height should not be capped during user resize");
+assert.doesNotMatch(source, /maxNodeH/, "removed max-node-height helper should not be referenced");
+assert.match(source, /H = Math\.max\(minPreviewH, Math\.floor\(node\.size\[1\]/, "preview viewport height should follow the node height");
+assert.match(source, /const measuredWidgetH = minPreviewH \+ controlsGap \+ controlsH/, "DOM widget measured height should stay stable");
+assert.match(source, /outer\.style\.height = `\$\{measuredWidgetH\}px`/, "DOM widget measured height should not follow node height");
+assert.doesNotMatch(source, /outer\.style\.height = `\$\{H \+ controlsGap \+ controlsH\}px`/, "DOM widget height should not feed back into node height");
+assert.match(source, /wrapper\.style\.height = `\$\{H \+ controlsGap \+ controlsH\}px`/, "editor wrapper should still follow the node height");
+assert.match(source, /const controlsGap = 8/, "toolbar should keep padding from the fitted image");
+assert.match(source, /imageRect\.y \+ imageRect\.h \+ controlsGap/, "toolbar should align to the fitted image bottom");
+assert.doesNotMatch(source, /controls\.style\.top = `\$\{H\}px`/, "toolbar should not be pinned to the node bottom");
+assert.match(source, /row1\.append\(sizeInput, paintBtn, eraseBtn, rectBtn, lassoBtn, fillBtn, clearBtn\)/, "brush size slider should be first on the toolbar");
+assert.match(source, /wrapper\.addEventListener\("pointerenter"/, "cursor should appear when hovering the preview");
+assert.match(source, /wrapper\.addEventListener\("pointerleave"/, "cursor should hide when leaving the preview");
+assert.match(source, /redrawMaskOverlay\(\);\s*\n\s*}\s*;/, "brush-size changes should redraw the cursor overlay");

@@ -26,7 +26,7 @@ def get_input_images():
     return sorted(files)
 
 
-class InlineMask:
+class MaskingADV:
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -39,7 +39,7 @@ class InlineMask:
             }
         }
 
-    CATEGORY = "Comfyui-DHan/Inline Image"
+    CATEGORY = "Comfyui-DHan/MaskingADV"
     RETURN_TYPES = ("IMAGE", "MASK")
     RETURN_NAMES = ("image", "mask")
     FUNCTION = "load_image_and_mask"
@@ -76,3 +76,4 @@ class InlineMask:
     @classmethod
     def IS_CHANGED(cls, image, mask_data):
         return image + str(hash(mask_data))
+

@@ -1,32 +1,21 @@
-# Comfyui-DHan-InlineImage
+# Comfyui-DHan-MaskingADV
 
-An inline image preview, transform, and mask-painting node for ComfyUI.
+Advanced image masking and editing inside a ComfyUI node. MaskingADV lets you load, paste, or drop an image, transform it, and paint a mask without opening a separate editor. It outputs the edited image and mask for downstream nodes.
 
-The frontend includes the latest Nodes 2.0 preview compatibility and brush cursor updates from the supplied InlineImage package.
-
-Inline Image keeps common image preparation and masking controls directly inside the node, reducing the need to jump between external editors while building workflows.
+The frontend includes Nodes 2.0 preview compatibility and brush cursor updates.
 
 ## Features
 
-- Load, paste, or drag images directly into the node
-- Inline image preview
-- Brush mask painting and erasing
-- Rectangle and lasso masking
-- Fill and clear mask controls
-- Image rotation
-- Horizontal and vertical mirroring
-- Zoom and pan controls
-- Outputs image and mask data for use elsewhere in the workflow
+- Image loading, paste, and drag-and-drop
+- Brush painting and erasing, rectangle and lasso masking, fill and clear
+- Rotation, mirroring, zoom, and pan
+- Image and mask outputs
 
 ## Installation
 
-### ComfyUI Manager
+Search for **Comfyui-DHan-MaskingADV** in ComfyUI Manager, or clone [this repository](https://github.com/DHan315/Comfyui-DHan-MaskingADV) into `ComfyUI/custom_nodes/`. Restart ComfyUI and refresh the browser after updating.
 
-Search for **Inline Image** in ComfyUI Manager and install it.
+The node appears as **Comfyui-DHan-MaskingADV** under `Comfyui-DHan/MaskingADV`.
 
-### Manual installation
+The internal node ID is `MaskingADV`. Existing workflows using the old node ID must replace the node or update their saved workflow JSON.
 
-Clone this repository into:
-
-```text
-ComfyUI/custom_nodes/

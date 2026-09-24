@@ -1,14 +1,15 @@
 [project]
-name = "comfyui-dhan-inline-image"
+name = "comfyui-dhan-maskingadv"
 version = "0.1.0"
-description = "Inline image preview, transform, and mask painting node for ComfyUI."
+description = "Advanced image masking and editing node for ComfyUI."
 license = { file = "LICENSE" }
 dependencies = []
 
 [project.urls]
-Repository = "https://github.com/DHan315/Comfyui-DHan-InlineImage"
-"Bug Tracker" = "https://github.com/DHan315/Comfyui-DHan-InlineImage/issues"
+Repository = "https://github.com/DHan315/Comfyui-DHan-MaskingADV"
+"Bug Tracker" = "https://github.com/DHan315/Comfyui-DHan-MaskingADV/issues"
 
 [tool.comfy]
 PublisherId = "dhan315"
-DisplayName = "Comfyui-DHan-InlineImage"
+DisplayName = "Comfyui-DHan-MaskingADV"
+

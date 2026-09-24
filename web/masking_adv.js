@@ -2,11 +2,11 @@ import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 
 app.registerExtension({
-  name: "InlineImage",
+  name: "MaskingADV",
 
   async beforeRegisterNodeDef(nodeType, nodeData) {
     const comfyNodeName = nodeData?.name ?? nodeType?.comfyClass;
-    if (comfyNodeName !== "InlineMask") return;
+    if (comfyNodeName !== "MaskingADV") return;
     const proto = nodeType?.prototype;
     if (!proto) return;
 
@@ -31,7 +31,7 @@ app.registerExtension({
       if (!imageDef[0].includes(value)) imageDef[0].push(value);
     }
 
-    function disableInlineImageUploadPreview() {
+    function disableMaskingADVUploadPreview() {
       const imageDef = nodeData?.input?.required?.image ?? nodeData?.input?.optional?.image;
       const imageOptions = Array.isArray(imageDef) && imageDef[1] && typeof imageDef[1] === "object" ? imageDef[1] : null;
       if (!imageOptions) return;
@@ -44,7 +44,7 @@ app.registerExtension({
       imageOptions.video_upload = false;
     }
 
-    disableInlineImageUploadPreview();
+    disableMaskingADVUploadPreview();
 
     function syncTrackedImage(node, widget, value) {
       if (!node || !widget || typeof value !== "string" || !value) return;
@@ -147,9 +147,8 @@ app.registerExtension({
 
       suppressOutputPreview();
 
-      const BRUSH_STORAGE_KEY = "comfyui.inline_image.brush_size";
-      const LEGACY_BRUSH_STORAGE_KEY = "comfyui.inline_mask_painter.brush_size";
-      const storedBrush = Number(localStorage.getItem(BRUSH_STORAGE_KEY) ?? localStorage.getItem(LEGACY_BRUSH_STORAGE_KEY));
+      const BRUSH_STORAGE_KEY = "comfyui.masking_adv.brush_size";
+      const storedBrush = Number(localStorage.getItem(BRUSH_STORAGE_KEY));
       let brushSize = Number.isFinite(storedBrush) ? Math.min(100, Math.max(1, storedBrush)) : 30;
 
       let tool = "paint";
@@ -447,7 +446,7 @@ app.registerExtension({
       outer.appendChild(wrapper);
 
       if (typeof node.addDOMWidget !== "function") {
-        console.warn("InlineImage requires ComfyUI DOM widget support; inline mask controls were not mounted.");
+        console.warn("MaskingADV requires ComfyUI DOM widget support; mask controls were not mounted.");
         return;
       }
 
@@ -883,7 +882,7 @@ app.registerExtension({
         canvas.toBlob(async blob => {
           if (!blob) return;
           try { await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]); }
-          catch (err) { console.warn("InlineMask copy image failed:", err); }
+          catch (err) { console.warn("MaskingADV copy image failed:", err); }
         }, "image/png");
       }
 
@@ -1184,3 +1183,4 @@ app.registerExtension({
     };
   },
 });
+

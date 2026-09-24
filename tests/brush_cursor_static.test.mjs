@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const source = readFileSync(join(here, "..", "web", "inline_mask_painter.js"), "utf8");
+const source = readFileSync(join(here, "..", "web", "masking_adv.js"), "utf8");
 
 assert.match(source, /function drawBrushCursor\(\)/, "brush cursor overlay renderer should exist");
 assert.match(source, /drawBrushCursor\(\);\s*\n\s*}/, "mask redraw should include the brush cursor overlay");
@@ -17,7 +17,7 @@ assert.match(source, /function suppressOutputPreview\(\)/, "Nodes 2.0 output con
 assert.match(source, /Object\.defineProperty\(node, "imgs"/, "node image preview storage should be guarded against repopulation");
 assert.match(source, /Object\.defineProperty\(node, "imageIndex"/, "node image preview index should be guarded against repopulation");
 assert.match(source, /node\.hideOutputImages = true/, "Nodes 2.0 Vue image output preview should be opted out");
-assert.match(source, /function disableInlineImageUploadPreview\(\)/, "Nodes 2.0 media upload preview should be disabled at the node spec");
+assert.match(source, /function disableMaskingADVUploadPreview\(\)/, "Nodes 2.0 media upload preview should be disabled at the node spec");
 assert.match(source, /imageOptions\.image_upload = false/, "image upload spec should be disabled for the inline combo");
 assert.match(source, /imageWidget\.spec\.image_upload = false/, "live image widget spec should be disabled for Nodes 2.0");
 assert.match(source, /node\.size\[1\] = Math\.max\(node\.size\[1\], minNodeH\(\)\)/, "node height should only enforce the minimum during resize");
@@ -35,3 +35,4 @@ assert.match(source, /row1\.append\(sizeInput, paintBtn, eraseBtn, rectBtn, lass
 assert.match(source, /wrapper\.addEventListener\("pointerenter"/, "cursor should appear when hovering the preview");
 assert.match(source, /wrapper\.addEventListener\("pointerleave"/, "cursor should hide when leaving the preview");
 assert.match(source, /redrawMaskOverlay\(\);\s*\n\s*}\s*;/, "brush-size changes should redraw the cursor overlay");
+

@@ -5,7 +5,10 @@ app.registerExtension({
   name: "InlineImage",
 
   async beforeRegisterNodeDef(nodeType, nodeData) {
-    if (nodeData.name !== "InlineMask") return;
+    const comfyNodeName = nodeData?.name ?? nodeType?.comfyClass;
+    if (comfyNodeName !== "InlineMask") return;
+    const proto = nodeType?.prototype;
+    if (!proto) return;
 
     // ComfyUI frontend 1.49.x keeps both the live combo widget and the
     // registered node input definition as media-validation sources of truth.
@@ -28,6 +31,21 @@ app.registerExtension({
       if (!imageDef[0].includes(value)) imageDef[0].push(value);
     }
 
+    function disableInlineImageUploadPreview() {
+      const imageDef = nodeData?.input?.required?.image ?? nodeData?.input?.optional?.image;
+      const imageOptions = Array.isArray(imageDef) && imageDef[1] && typeof imageDef[1] === "object" ? imageDef[1] : null;
+      if (!imageOptions) return;
+
+      // Nodes 2.0 uses these upload flags to switch the combo into the full
+      // media picker, which renders its own thumbnail preview below the inline
+      // editor. This node already owns image upload/drop/paste and preview UI.
+      imageOptions.image_upload = false;
+      imageOptions.animated_image_upload = false;
+      imageOptions.video_upload = false;
+    }
+
+    disableInlineImageUploadPreview();
+
     function syncTrackedImage(node, widget, value) {
       if (!node || !widget || typeof value !== "string" || !value) return;
       registerImageValue(widget, value);
@@ -43,6 +61,7 @@ app.registerExtension({
 
       const reassert = () => {
         if (!node.graph) return;
+        node.hideOutputImages = true;
         syncTrackedImage(node, widget, value);
         widget.callback?.(value);
         node.imgs = [];
@@ -55,30 +74,49 @@ app.registerExtension({
       requestAnimationFrame(() => requestAnimationFrame(reassert));
     }
 
-    const onNodeCreated = nodeType.prototype.onNodeCreated;
-    const onResize = nodeType.prototype.onResize;
-    const onConfigure = nodeType.prototype.onConfigure;
-    const onModeChange = nodeType.prototype.onModeChange;
+    const onNodeCreated = proto.onNodeCreated;
+    const onResize = proto.onResize;
+    const onConfigure = proto.onConfigure;
+    const onModeChange = proto.onModeChange;
 
-    nodeType.prototype.onConfigure = function (...args) {
+    proto.onConfigure = function (...args) {
       const result = onConfigure?.apply(this, args);
       refreshTrackedMedia(this);
       return result;
     };
 
-    nodeType.prototype.onModeChange = function (...args) {
+    proto.onModeChange = function (...args) {
       const result = onModeChange?.apply(this, args);
       refreshTrackedMedia(this);
       return result;
     };
 
-    nodeType.prototype.onNodeCreated = function () {
+    proto.onNodeCreated = function () {
       onNodeCreated?.apply(this, arguments);
 
       const node = this;
-      node.imgs = [];
-      node.imageIndex = null;
-      node.onDrawBackground = () => {};
+
+      function suppressBuiltInPreview() {
+        try {
+          Object.defineProperty(node, "imgs", {
+            configurable: true,
+            get: () => [],
+            set: () => {},
+          });
+          Object.defineProperty(node, "imageIndex", {
+            configurable: true,
+            get: () => null,
+            set: () => {},
+          });
+        } catch {
+          node.imgs = [];
+          node.imageIndex = null;
+        }
+        node.onDrawBackground = () => {};
+        node.onDrawForeground = () => {};
+      }
+
+      suppressBuiltInPreview();
 
       const imageWidget = node.widgets?.find(w => w.name === "image");
       const maskWidget = node.widgets?.find(w => w.name === "mask_data");
@@ -91,7 +129,23 @@ app.registerExtension({
       if (imageWidget) {
         imageWidget.computeSize = () => [220, 24];
         imageWidget.draw = () => {};
+        if (imageWidget.spec && typeof imageWidget.spec === "object") {
+          imageWidget.spec.image_upload = false;
+          imageWidget.spec.animated_image_upload = false;
+          imageWidget.spec.video_upload = false;
+        }
+        imageWidget.options ??= {};
+        imageWidget.options.showPreview = false;
+        imageWidget.options.hidePreview = true;
       }
+
+      function suppressOutputPreview() {
+        // Nodes 2.0 renders IMAGE outputs as Vue node content below widgets.
+        // This node already owns its inline preview/editor, so opt out of that.
+        node.hideOutputImages = true;
+      }
+
+      suppressOutputPreview();
 
       const BRUSH_STORAGE_KEY = "comfyui.inline_image.brush_size";
       const LEGACY_BRUSH_STORAGE_KEY = "comfyui.inline_mask_painter.brush_size";
@@ -123,14 +177,18 @@ app.registerExtension({
       let panMoved = false;
       let lastMiddleClickTime = 0;
       let maskExplicit = false;
+      let pointerInPreview = false;
+      let brushCursorPoint = null;
 
       let W = 320;
       let H = 200;
 
       const controlsH = 56;
+      const controlsGap = 8;
       const minNodeW = 220;
       const minPreviewW = 120;
       const minPreviewH = 72;
+      const measuredWidgetH = minPreviewH + controlsGap + controlsH;
       const nodeTopPadding = 112;
       const nodeBottomPadding = 12;
       const workspacePadding = 36;
@@ -138,9 +196,9 @@ app.registerExtension({
       const outer = document.createElement("div");
       Object.assign(outer.style, {
         width: "100%",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
+        position: "relative",
+        display: "block",
+        overflow: "visible",
         marginTop: "6px",
         marginBottom: "0",
         boxSizing: "border-box",
@@ -148,7 +206,10 @@ app.registerExtension({
 
       const wrapper = document.createElement("div");
       Object.assign(wrapper.style, {
-        position: "relative",
+        position: "absolute",
+        left: "50%",
+        top: "0",
+        transform: "translateX(-50%)",
         border: "none",
         background: "transparent",
         overflow: "hidden",
@@ -166,7 +227,6 @@ app.registerExtension({
           touchAction: "none",
         });
       }
-      maskCanvas.style.cursor = "crosshair";
       wrapper.title = "Mouse wheel: fine zoom • Ctrl+wheel: coarse zoom • Middle mouse drag: pan • Double middle-click: fit";
       maskCanvas.style.pointerEvents = "none";
 
@@ -380,11 +440,16 @@ app.registerExtension({
         userSelect: "none",
       });
 
-      row1.append(paintBtn, eraseBtn, rectBtn, lassoBtn, fillBtn, clearBtn, sizeInput);
+      row1.append(sizeInput, paintBtn, eraseBtn, rectBtn, lassoBtn, fillBtn, clearBtn);
       row2.append(rotLBtn, rotationSlider, rotationValue, rotRBtn, mirrorHBtn, mirrorVBtn, resetBtn, copyBtn);
       controls.append(row1, row2);
       wrapper.append(previewCanvas, maskCanvas, controls);
       outer.appendChild(wrapper);
+
+      if (typeof node.addDOMWidget !== "function") {
+        console.warn("InlineImage requires ComfyUI DOM widget support; inline mask controls were not mounted.");
+        return;
+      }
 
       const domWidget = node.addDOMWidget("inline_mask_canvas", "div", outer, {
         serialize: false,
@@ -393,7 +458,7 @@ app.registerExtension({
       // Report a stable minimum to ComfyUI. Using node.size here creates a
       // one-way resize ratchet: after growing, the current height becomes the
       // widget minimum and the node can no longer be made smaller.
-      domWidget.computeSize = () => [minNodeW - 20, minPreviewH + controlsH + 8];
+      domWidget.computeSize = () => [minNodeW - 20, measuredWidgetH + 8];
 
       function markChanged() {
         node.widgets_values = node.widgets?.map(w => w.value);
@@ -402,11 +467,11 @@ app.registerExtension({
       }
 
       function minNodeH() {
-        return nodeTopPadding + controlsH + minPreviewH + nodeBottomPadding;
+        return nodeTopPadding + minPreviewH + controlsGap + controlsH + nodeBottomPadding;
       }
 
       function enforceNodeSize() {
-        // Only guard against unusably small dimensions. Never resize based on image aspect.
+        // Only guard against unusably small dimensions. User resizing owns the maximum.
         if (resizing) return;
         resizing = true;
         node.size[0] = Math.max(node.size[0], minNodeW);
@@ -459,6 +524,23 @@ app.registerExtension({
         }
         mirrorHBtn.classList.toggle("inline-active", mirrorX);
         mirrorVBtn.classList.toggle("inline-active", mirrorY);
+        setWrapperCursor();
+      }
+
+      function brushCursorEnabled() {
+        return pointerInPreview && previewImg && imageRect && (tool === "paint" || tool === "erase") && !isPanning;
+      }
+
+      function setWrapperCursor() {
+        if (isPanning) {
+          wrapper.style.cursor = "grabbing";
+        } else if (brushCursorEnabled()) {
+          wrapper.style.cursor = "none";
+        } else if (pointerInPreview && previewImg) {
+          wrapper.style.cursor = "crosshair";
+        } else {
+          wrapper.style.cursor = "default";
+        }
       }
 
       function setPreviewFromSource({ resetMask = true } = {}) {
@@ -501,15 +583,13 @@ app.registerExtension({
       function setCanvasSizeFromNode() {
         // The viewport follows the node dimensions independently. The image is fit inside it.
         W = Math.max(minPreviewW, Math.floor(node.size[0] - 40));
-        H = Math.max(minPreviewH, Math.floor(node.size[1] - nodeTopPadding - controlsH - nodeBottomPadding));
+        H = Math.max(minPreviewH, Math.floor(node.size[1] - nodeTopPadding - controlsGap - controlsH - nodeBottomPadding));
 
-        outer.style.height = `${H + controlsH}px`;
-        outer.style.transform = "none";
+        outer.style.height = `${measuredWidgetH}px`;
         wrapper.style.width = `${W}px`;
-        wrapper.style.height = `${H + controlsH}px`;
+        wrapper.style.height = `${H + controlsGap + controlsH}px`;
         configureDisplayCanvas(previewCanvas, pctx, W, H);
         configureDisplayCanvas(maskCanvas, mctx, W, H);
-        controls.style.top = `${H}px`;
         redrawPreview();
         saveMask();
       }
@@ -563,6 +643,11 @@ app.registerExtension({
         return { x: (W - iw) / 2, y: (H - ih) / 2, w: iw, h: ih, scale };
       }
 
+      function layoutControls() {
+        const controlsTop = imageRect ? imageRect.y + imageRect.h + controlsGap : H + controlsGap;
+        controls.style.top = `${Math.max(0, Math.min(controlsTop, H + controlsGap))}px`;
+      }
+
       function redrawPreview() {
         pctx.clearRect(0, 0, W, H);
         wrapper.style.background = "transparent";
@@ -578,6 +663,7 @@ app.registerExtension({
           pctx.textAlign = "center";
           pctx.fillText("Drop / paste / select image", W / 2, H / 2);
         }
+        layoutControls();
         redrawMaskOverlay();
       }
 
@@ -600,6 +686,28 @@ app.registerExtension({
           mctx.drawImage(overlay, imageRect.x, imageRect.y, imageRect.w, imageRect.h);
         }
         drawSelectionPreview();
+        drawBrushCursor();
+      }
+
+      function drawBrushCursor() {
+        if (!brushCursorEnabled() || !brushCursorPoint) return;
+        const { x, y } = brushCursorPoint;
+        if (x < 0 || x > W || y < 0 || y > H) return;
+
+        const radius = Math.max(0.5, brushSize / 2);
+        mctx.save();
+        mctx.setLineDash([]);
+        mctx.beginPath();
+        mctx.arc(x, y, radius, 0, Math.PI * 2);
+        mctx.lineWidth = 3;
+        mctx.strokeStyle = "rgba(0, 0, 0, 0.75)";
+        mctx.stroke();
+        mctx.beginPath();
+        mctx.arc(x, y, radius, 0, Math.PI * 2);
+        mctx.lineWidth = 1.5;
+        mctx.strokeStyle = tool === "erase" ? "rgba(255, 255, 255, 0.95)" : "rgba(255, 130, 32, 0.95)";
+        mctx.stroke();
+        mctx.restore();
       }
 
       function drawSelectionPreview() {
@@ -634,15 +742,21 @@ app.registerExtension({
 
       function getImagePoint(e) {
         if (!imageRect || !previewImg) return null;
-        const rect = maskCanvas.getBoundingClientRect();
-        const canvasX = ((e.clientX - rect.left) / rect.width) * W;
-        const canvasY = ((e.clientY - rect.top) / rect.height) * H;
+        const { x: canvasX, y: canvasY } = getCanvasPoint(e);
         // Deliberately return unclamped image coordinates. The real mask canvas
         // clips paint and selections to valid pixels, while pointer capture lets
         // the gesture continue beyond the padded workspace and node bounds.
         return {
           x: ((canvasX - imageRect.x) / imageRect.w) * previewImg.width,
           y: ((canvasY - imageRect.y) / imageRect.h) * previewImg.height,
+        };
+      }
+
+      function getCanvasPoint(e) {
+        const rect = maskCanvas.getBoundingClientRect();
+        return {
+          x: ((e.clientX - rect.left) / rect.width) * W,
+          y: ((e.clientY - rect.top) / rect.height) * H,
         };
       }
 
@@ -787,6 +901,7 @@ app.registerExtension({
       });
 
       function loadCurrentImagePreview() {
+        suppressBuiltInPreview();
         if (!imageWidget?.value) {
           sourceImg = null; previewImg = null; redrawPreview(); enforceNodeSize(); return;
         }
@@ -805,7 +920,8 @@ app.registerExtension({
           quarterTurns = 0; fineRotation = 0; mirrorX = false; mirrorY = false; resetReframe();
           rotationSlider.value = "0"; rotationValue.textContent = "0.0°";
           setPreviewFromSource();
-          node.imgs = []; node.imageIndex = null; enforceNodeSize();
+          suppressBuiltInPreview();
+          enforceNodeSize();
           app.graph.setDirtyCanvas(true, true);
         };
         img.onerror = () => { sourceImg = null; previewImg = null; redrawPreview(); enforceNodeSize(); };
@@ -816,23 +932,47 @@ app.registerExtension({
       if (imageWidget) {
         imageWidget.callback = function () {
           oldImageCallback?.apply(this, arguments);
-          node.imgs = []; node.imageIndex = null;
+          suppressBuiltInPreview();
           app.graph.setDirtyCanvas(true, true);
           if (!internalImageWidgetUpdate) setTimeout(loadCurrentImagePreview, 150);
         };
       }
 
       function pointerIsInPreview(e) {
-        const rect = maskCanvas.getBoundingClientRect();
-        const canvasY = ((e.clientY - rect.top) / rect.height) * H;
-        return canvasY >= 0 && canvasY <= H;
+        const p = getCanvasPoint(e);
+        return p.y >= 0 && p.y <= H;
+      }
+
+      function updateBrushCursor(e) {
+        if (!pointerIsInPreview(e)) {
+          pointerInPreview = false;
+          brushCursorPoint = null;
+        } else {
+          pointerInPreview = true;
+          brushCursorPoint = getCanvasPoint(e);
+        }
+        setWrapperCursor();
+        redrawMaskOverlay();
       }
 
       // Handle gestures on the full preview workspace rather than only on the
       // visible image. This lets Rectangle/Lasso/Brush/Eraser begin in the
       // padded area around the image. The real mask canvas clips committed
       // pixels to valid image bounds.
+      wrapper.addEventListener("pointerenter", e => {
+        updateBrushCursor(e);
+      }, true);
+
+      wrapper.addEventListener("pointerleave", e => {
+        if (isDrawing || isPanning) return;
+        pointerInPreview = false;
+        brushCursorPoint = null;
+        setWrapperCursor();
+        redrawMaskOverlay();
+      }, true);
+
       wrapper.addEventListener("pointerdown", e => {
+        updateBrushCursor(e);
         if (e.button !== 0 || !pointerIsInPreview(e)) { isDrawing = false; return; }
         const p = getImagePoint(e);
         if (!p) return;
@@ -850,6 +990,7 @@ app.registerExtension({
       }, true);
 
       wrapper.addEventListener("pointermove", e => {
+        updateBrushCursor(e);
         if (!isDrawing || (e.buttons & 1) !== 1) return;
         e.preventDefault(); e.stopPropagation();
         if (tool === "paint" || tool === "erase") drawBrush(e);
@@ -918,10 +1059,11 @@ app.registerExtension({
         panMoved = false;
         panStart = { x: e.clientX, y: e.clientY, panX, panY };
         wrapper.setPointerCapture(e.pointerId);
-        maskCanvas.style.cursor = "grabbing";
+        setWrapperCursor();
       }, true);
 
       wrapper.addEventListener("pointermove", e => {
+        if (isPanning) updateBrushCursor(e);
         if (!isPanning || !panStart || !imageRect) return;
         e.preventDefault();
         e.stopPropagation();
@@ -939,7 +1081,7 @@ app.registerExtension({
         if (!isPanning) return;
         isPanning = false;
         panStart = null;
-        maskCanvas.style.cursor = "crosshair";
+        setWrapperCursor();
         try { wrapper.releasePointerCapture(e.pointerId); } catch {}
 
         // Double middle-click returns to Fit: 100% zoom and centered.
@@ -963,7 +1105,8 @@ app.registerExtension({
         if (e.button === 1) { e.preventDefault(); e.stopPropagation(); }
       }, true);
 
-      maskCanvas.addEventListener("contextmenu", e => {
+      wrapper.addEventListener("contextmenu", e => {
+        if (!pointerIsInPreview(e)) return;
         e.preventDefault(); e.stopPropagation();
         isDrawing = false;
         const canvasEl = app.canvas?.canvas;
@@ -975,7 +1118,7 @@ app.registerExtension({
         }));
       });
 
-      function setTool(next) { tool = next; updateButtonStyles(); }
+      function setTool(next) { tool = next; updateButtonStyles(); redrawMaskOverlay(); }
       paintBtn.onclick = e => { e.preventDefault(); e.stopPropagation(); setTool("paint"); };
       eraseBtn.onclick = e => { e.preventDefault(); e.stopPropagation(); setTool("erase"); };
       rectBtn.onclick = e => { e.preventDefault(); e.stopPropagation(); setTool("rect"); };
@@ -1019,14 +1162,16 @@ app.registerExtension({
         brushSize = Number(e.target.value);
         sizeInput.title = `Brush size: ${brushSize}`;
         localStorage.setItem(BRUSH_STORAGE_KEY, String(brushSize));
+        redrawMaskOverlay();
       };
 
       updateButtonStyles();
       markChanged();
+      suppressBuiltInPreview();
       node.setSize([Math.max(node.size?.[0] || minNodeW, minNodeW), Math.max(node.size?.[1] || minNodeH(), minNodeH())]);
       setCanvasSizeFromNode();
       redrawPreview();
-      setTimeout(() => { node.imgs = []; node.imageIndex = null; loadCurrentImagePreview(); app.graph.setDirtyCanvas(true, true); }, 300);
+      setTimeout(() => { suppressBuiltInPreview(); loadCurrentImagePreview(); app.graph.setDirtyCanvas(true, true); }, 300);
 
       node.onResize = function (size) {
         onResize?.apply(this, arguments);

@@ -5,7 +5,7 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "InlineMask": "Inline Image",
+    "InlineMask": "Comfyui-DHan-Inline Image",
 }
 
 WEB_DIRECTORY = "./web"

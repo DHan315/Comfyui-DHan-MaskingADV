@@ -39,7 +39,7 @@ class InlineMask:
             }
         }
 
-    CATEGORY = "Inline"
+    CATEGORY = "Comfyui-DHan/Inline Image"
     RETURN_TYPES = ("IMAGE", "MASK")
     RETURN_NAMES = ("image", "mask")
     FUNCTION = "load_image_and_mask"

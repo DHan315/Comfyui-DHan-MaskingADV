@@ -1,11 +1,12 @@
-from .inline_mask_painter import InlineMask
+from .masking_adv import MaskingADV
 
 NODE_CLASS_MAPPINGS = {
-    "InlineMask": InlineMask,
+    "MaskingADV": MaskingADV,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "InlineMask": "Comfyui-DHan-Inline Image",
+    "MaskingADV": "Comfyui-DHan-MaskingADV",
 }
 
 WEB_DIRECTORY = "./web"
+

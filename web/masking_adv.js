@@ -184,7 +184,7 @@ app.registerExtension({
 
       const controlsH = 56;
       const controlsGap = 8;
-      const footerGap = 22;
+      const editorLift = 70;
       const minNodeW = 220;
       const minPreviewW = 120;
       const minPreviewH = 72;
@@ -208,7 +208,7 @@ app.registerExtension({
       Object.assign(wrapper.style, {
         position: "absolute",
         left: "50%",
-        top: `-${footerGap}px`,
+        top: `-${editorLift}px`,
         transform: "translateX(-50%)",
         border: "none",
         background: "transparent",

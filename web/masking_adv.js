@@ -977,7 +977,7 @@ app.registerExtension({
 
       function pointerIsInPreview(e) {
         const p = getCanvasPoint(e);
-        return p.y >= 0 && p.y <= H;
+        return p.x >= 0 && p.x <= W && p.y >= 0 && p.y <= H;
       }
 
       function updateBrushCursor(e, redraw = true) {
@@ -1071,10 +1071,10 @@ app.registerExtension({
         });
       }
 
-      wrapper.addEventListener("wheel", e => {
-        if (!previewImg || !pointerIsInPreview(e)) return;
+      function handlePreviewWheel(e) {
+        if (!previewImg || !outer.isConnected || (e.target !== app.canvas?.canvas && !wrapper.contains(e.target)) || !pointerIsInPreview(e)) return;
         e.preventDefault();
-        e.stopPropagation();
+        e.stopImmediatePropagation();
         const rect = maskCanvas.getBoundingClientRect();
         const cx = ((e.clientX - rect.left) / rect.width) * W;
         const cy = ((e.clientY - rect.top) / rect.height) * H;
@@ -1093,7 +1093,13 @@ app.registerExtension({
         panX += (outputX - centerX - panX) * (1 - zoom / oldZoom);
         panY += (outputY - centerY - panY) * (1 - zoom / oldZoom);
         scheduleReframe();
-      }, { capture: true, passive: false });
+      }
+      document.addEventListener("wheel", handlePreviewWheel, { capture: true, passive: false });
+      const onRemoved = node.onRemoved;
+      node.onRemoved = function (...args) {
+        document.removeEventListener("wheel", handlePreviewWheel, true);
+        return onRemoved?.apply(this, args);
+      };
 
       wrapper.addEventListener("pointerdown", e => {
         if (e.button !== 1 || !pointerIsInPreview(e) || !previewImg) return;

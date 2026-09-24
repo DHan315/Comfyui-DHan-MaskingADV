@@ -687,13 +687,16 @@ app.registerExtension({
             const data = maskData.data;
             for (let i = 0; i < data.length; i += 4) {
               if (data[i] > 0) {
-                data[i] = 255; data[i + 1] = 0; data[i + 2] = 0; data[i + 3] = 120;
+                data[i] = 255; data[i + 1] = 0; data[i + 2] = 0; data[i + 3] = 255;
               } else data[i + 3] = 0;
             }
             octx.putImageData(maskData, 0, 0);
             overlayDirty = false;
           }
+          mctx.save();
+          mctx.globalAlpha = 120 / 255;
           mctx.drawImage(overlay, 0, 0, W, H);
+          mctx.restore();
         }
         drawSelectionPreview();
         drawBrushCursor();
@@ -803,10 +806,33 @@ app.registerExtension({
         if (!isDrawing) return;
         const p = getImagePoint(e);
         if (!p) { lastPoint = null; return; }
+        const previous = lastPoint;
         if (lastPoint) drawLine(lastPoint, p, tool);
         else stamp(p, tool);
         lastPoint = p;
-        overlayDirty = true;
+        octx.save();
+        octx.beginPath();
+        octx.rect(imageRect.x, imageRect.y, imageRect.w, imageRect.h);
+        octx.clip();
+        octx.globalCompositeOperation = tool === "erase" ? "destination-out" : "source-over";
+        octx.fillStyle = "red";
+        octx.strokeStyle = "red";
+        if (previous) {
+          const a = imageToCanvas(previous);
+          const b = imageToCanvas(p);
+          octx.beginPath();
+          octx.moveTo(a.x, a.y);
+          octx.lineTo(b.x, b.y);
+          octx.lineWidth = brushSize;
+          octx.lineCap = "round";
+          octx.stroke();
+        } else {
+          const point = imageToCanvas(p);
+          octx.beginPath();
+          octx.arc(point.x, point.y, Math.max(0.5, brushSize / 2), 0, Math.PI * 2);
+          octx.fill();
+        }
+        octx.restore();
         redrawMaskOverlay();
       }
 
